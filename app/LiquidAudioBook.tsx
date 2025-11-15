@@ -8,25 +8,35 @@ import React, { useState, useCallback } from 'react';
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Creates a mock audio WAV file as a Blob.
- * This simulates the output of the TTS engine.
- * @returns {Promise<Blob>} A Promise that resolves with a WAV Blob.
+ * Creates a mock audio file as a Blob.
+ *
+ * INTEGRATION NOTES:
+ * - FR-007: This should call Liquid.ai TTS API with refined text
+ * - FR-008: Progress should be shown during generation
+ * - FR-012: Returns audio as WAV for now (will be MP3 from Liquid.ai API)
+ *
+ * Backend Integration:
+ * POST /api/convert-to-audio
+ *   - Input: { text: string, files: File[] }
+ *   - Output: { audioBlob: Blob, duration: number }
+ *
+ * @returns {Promise<Blob>} A Promise that resolves with an audio Blob (MP3 from API).
  */
 const createMockAudio = () => {
   return new Promise(resolve => {
-    // We'll generate 1 second of silence to keep the file minimal
+    // TODO: Replace with actual Liquid.ai TTS API call
+    // For MVP demonstration, create minimal mock audio
     const duration = 1; // 1 second
     const sampleRate = 44100;
     const numFrames = duration * sampleRate;
     const numChannels = 1;
 
-    // Create an empty audio buffer
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const buffer = audioContext.createBuffer(numChannels, numFrames, sampleRate);
-    
-    // The buffer is already filled with silence, so we just need to encode it
-    const wavBlob = audioBufferToWav(buffer);
-    resolve(wavBlob);
+
+    // Note: Real API will return MP3; this is WAV for demo purposes
+    const audioBlob = audioBufferToWav(buffer);
+    resolve(audioBlob);
   });
 };
 
@@ -185,7 +195,18 @@ const App = () => {
   };
 
   /**
-   * Starts the mock conversion process.
+   * Handles the conversion process: file upload → text extraction → TTS → audio.
+   *
+   * BACKEND INTEGRATION REQUIRED:
+   * 1. FR-003: Call Liquid.ai Vision Model for each image
+   * 2. FR-004: Call Liquid.ai Text Extraction Model to refine combined text
+   * 3. FR-006: Combine extracted text from all images in sequence
+   * 4. FR-007: Call Liquid.ai TTS Model with refined text
+   * 5. FR-008: Show progress during conversion
+   *
+   * Backend endpoint: POST /api/convert
+   *   - Input: { files: File[] }
+   *   - Returns: { audioBlob: Blob, extractedText: string, duration: number }
    */
   const handleConversion = async () => {
     if (files.length === 0) {
@@ -196,29 +217,38 @@ const App = () => {
     setError(null);
 
     try {
-      // 1. Simulate Vision Model (FR-003)
+      // Step 1: Vision Model Text Extraction (FR-003, FR-005)
+      // TODO: Replace with actual Liquid.ai Vision API calls
+      let extractedTexts = [];
       for (let i = 0; i < files.length; i++) {
         setProgress(`Step 1/3: Extracting text from page ${i + 1}/${files.length}...`);
         // Simulate extraction time per image (NFR: < 2s)
         await sleep(250 + Math.random() * 500); // 250-750ms
+        // In real implementation: extract text from files[i]
+        extractedTexts.push(`[Text extracted from page ${i + 1}]`);
       }
 
-      // 2. Simulate Text Refinement (FR-004)
+      // Step 2: Text Refinement (FR-004, FR-006)
+      // TODO: Replace with actual Liquid.ai Text Extraction API call
       setProgress('Step 2/3: Refining extracted text...');
+      // Combine all extracted texts
+      const combinedText = extractedTexts.join(' ');
       // Simulate refinement time (NFR: < 3s)
       await sleep(1000 + Math.random() * 1000); // 1-2s
+      // In real implementation: call Text Extraction Model API
 
-      // 3. Simulate TTS Generation (FR-007)
+      // Step 3: TTS Generation (FR-007, FR-008)
+      // TODO: Replace with actual Liquid.ai TTS API call
       setProgress('Step 3/3: Generating audio file...');
       // Simulate TTS time (NFR: < 5s per 1000 words)
       await sleep(1500 + Math.random() * 1500); // 1.5-3s
 
-      // 4. Create Mock Audio
+      // Create Mock Audio (will be replaced with real TTS output)
       const audioBlob = await createMockAudio();
       const url = URL.createObjectURL(audioBlob);
       setAudioUrl(url);
       setAppState('complete');
-      
+
     } catch (err) {
       console.error(err);
       setError('An unexpected error occurred during conversion.');
@@ -316,13 +346,13 @@ const App = () => {
       </audio>
 
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Audio Download (FR-012) */}
+        {/* Audio Download (FR-012) - Download as MP3 per PRD */}
         <a
           href={audioUrl}
-          download="liquid-audiobook.wav" // Changed to .wav to match mock
+          download="liquid-audiobook.mp3"
           className="block w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors text-lg text-center"
         >
-          Download Audio
+          Download Audio (MP3)
         </a>
         <button
           onClick={resetApp}
