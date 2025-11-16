@@ -1,0 +1,24 @@
+# LiquidAudio Backend Dependencies
+
+# Web Framework
+Flask==3.0.0
+Flask-CORS==4.0.0
+Werkzeug==3.0.1
+
+# HTTP Client
+requests==2.31.0
+
+# Audio/TTS
+pyttsx3==2.90
+
+# Utilities
+python-dotenv==1.0.0
+python-multipart==0.0.6
+
+# Development
+gunicorn==21.2.0
+
+# Optional: For better audio support
+# scipy==1.11.4
+# librosa==0.10.0
+# soundfile==0.12.1
