@@ -64,6 +64,10 @@ export default function Home() {
       // Step 2: Extract text from images (Stage 0)
       console.log('Calling /api/extract-text');
       setProcessingStage(0);
+
+      // Add jobId to formData before sending
+      formData.append('jobId', jobId || '');
+
       const extractRes = await fetch('/api/extract-text', {
         method: 'POST',
         body: formData,

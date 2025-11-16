@@ -8,6 +8,7 @@ import type { RequestHandler, Express } from "express";
 import express from "express";
 import type { Server } from "http";
 import { createServer } from "http";
+import multer from "multer";
 
 interface MockConfig {
   port: number;
@@ -33,6 +34,7 @@ export class MockFlaskServer {
 
   private setupRoutes(): void {
     this.app.use(express.json());
+    const upload = multer({ storage: multer.memoryStorage() });
 
     // Health check
     this.app.get("/api/health", this.createDelayedHandler((req, res) => {
@@ -62,14 +64,28 @@ export class MockFlaskServer {
       });
     }));
 
-    // Extract text from images
-    this.app.post("/api/extract-text", this.createDelayedHandler((req, res) => {
-      const { jobId, images } = req.body;
+    // Extract text from images - handles both FormData and JSON
+    this.app.post("/api/extract-text", upload.array("images", 50), this.createDelayedHandler((req, res) => {
+      let jobId = "";
+      let images: string[] = [];
 
-      if (!jobId || !images || !Array.isArray(images)) {
+      // Handle multipart form data (from frontend)
+      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+        jobId = (req.body?.jobId as string) || `job-${Date.now()}`;
+        // Convert file buffers to base64 strings for processing
+        images = (req.files as Express.Multer.File[]).map((file) =>
+          file.buffer.toString("base64")
+        );
+      } else if (req.body?.images && Array.isArray(req.body.images)) {
+        // Handle JSON format (from tests or curl)
+        jobId = req.body.jobId || `job-${Date.now()}`;
+        images = req.body.images;
+      }
+
+      if (!images || images.length === 0) {
         return res.status(400).json({
           error: "Invalid request",
-          message: "jobId and images array required",
+          message: "No images provided",
         });
       }
 

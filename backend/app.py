@@ -93,20 +93,43 @@ def extract_text():
     """
     Extract text from images using vision model
 
-    Expected request:
-    {
-        "images": [base64_image_1, base64_image_2, ...],
-        "job_id": "uuid"
-    }
+    Expected request (multipart/form-data):
+    - Field 'images': Multiple image files
+    - Field 'jobId': (optional) UUID for job tracking
     """
     try:
-        data = request.get_json()
+        # Handle both multipart form data (from frontend) and JSON (from tests)
+        if request.content_type and 'multipart' in request.content_type:
+            # Multipart form data (from frontend)
+            if 'images' not in request.files:
+                return jsonify({'error': 'No images provided'}), 400
 
-        if not data or 'images' not in data:
-            return jsonify({'error': 'No images provided'}), 400
+            files = request.files.getlist('images')
+            if not files:
+                return jsonify({'error': 'No images provided'}), 400
 
-        images = data.get('images', [])
-        job_id = data.get('job_id', 'unknown')
+            # Convert file objects to bytes
+            images = [file.read() for file in files]
+            job_id = request.form.get('jobId', 'unknown')
+        else:
+            # JSON format (for backward compatibility with tests)
+            data = request.get_json()
+            if not data or 'images' not in data:
+                return jsonify({'error': 'No images provided'}), 400
+
+            images = data.get('images', [])
+            job_id = data.get('jobId', 'unknown')
+
+            # Decode base64 images if provided as strings
+            decoded_images = []
+            for img in images:
+                if isinstance(img, str):
+                    if img.startswith('data:'):
+                        img = img.split(',')[1]
+                    decoded_images.append(base64.b64decode(img))
+                else:
+                    decoded_images.append(img)
+            images = decoded_images
 
         logger.info(f"[{job_id}] Extracting text from {len(images)} images")
 
