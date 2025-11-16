@@ -23,6 +23,8 @@ export AUDIO_DECODER="./audiodecoder-model-f16.gguf"
 uv run python -m audiobook_generator.api
 ```
 
+You can find audio models at https://huggingface.co/LiquidAI/LFM2-Audio-1.5B-GGUF
+
 Or start without environment variables and configure via API:
 
 ```bash
