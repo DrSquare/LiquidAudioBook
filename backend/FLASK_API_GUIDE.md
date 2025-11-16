@@ -23,15 +23,13 @@ export AUDIO_DECODER="./audiodecoder-model-f16.gguf"
 uv run python -m audiobook_generator.api
 ```
 
-You can find audio models at https://huggingface.co/LiquidAI/LFM2-Audio-1.5B-GGUF
-
 Or start without environment variables and configure via API:
 
 ```bash
 uv run python -m audiobook_generator.api
 ```
 
-The server will start on `http://0.0.0.0:5000` by default.
+The server will start on `http://0.0.0.0:5001` by default.
 
 ## API Endpoints
 
@@ -42,7 +40,7 @@ The server will start on `http://0.0.0.0:5000` by default.
 Check if the API is running and see which models are configured.
 
 ```bash
-curl http://localhost:5000/api/health
+curl http://localhost:5001/api/health
 ```
 
 Response:
@@ -64,7 +62,7 @@ Response:
 Configure the models used by the API (if not set via environment variables).
 
 ```bash
-curl -X POST http://localhost:5000/api/config \
+curl -X POST http://localhost:5001/api/config \
   -H "Content-Type: application/json" \
   -d '{
     "extractor_model": "hf.co/LiquidAI/LFM2-1.2B-Extract-GGUF:F16",
@@ -87,7 +85,7 @@ Extract text from book page images. Two modes available:
 Upload image files directly via multipart form data.
 
 ```bash
-curl -X POST http://localhost:5000/api/extract-text \
+curl -X POST http://localhost:5001/api/extract-text \
   -F "pages=@/path/to/page1.jpg" \
   -F "pages=@/path/to/page2.jpg" \
   -F "book_id=alice-in-wonderland"
@@ -121,7 +119,7 @@ Response:
 Process all images in an existing directory.
 
 ```bash
-curl -X POST http://localhost:5000/api/extract-text \
+curl -X POST http://localhost:5001/api/extract-text \
   -H "Content-Type: application/json" \
   -d '{
     "directory": "/path/to/book/pages",
@@ -142,57 +140,20 @@ Response:
 }
 ```
 
-### 2. Generate Audio Files
+### 2. Generate Complete Audiobook
 
-**POST** `/api/generate-audio`
+**POST** `/api/generate-audiobook`
 
-Generate individual audio files for each page from the extracted text.
+Generate a complete audiobook from extracted text. This endpoint:
+1. Generates individual audio files for each page
+2. Combines them into a single audiobook file
+
+All in one step!
 
 #### Using book_id (for uploaded books):
 
 ```bash
-curl -X POST http://localhost:5000/api/generate-audio \
-  -H "Content-Type: application/json" \
-  -d '{
-    "book_id": "alice-in-wonderland"
-  }'
-```
-
-#### Using custom CSV path:
-
-```bash
-curl -X POST http://localhost:5000/api/generate-audio \
-  -H "Content-Type: application/json" \
-  -d '{
-    "csv_path": "/path/to/pages.csv",
-    "output_dir": "/path/to/audio/output"
-  }'
-```
-
-Response:
-```json
-{
-  "status": "success",
-  "csv_path": "./uploads/alice-in-wonderland/pages.csv",
-  "output_dir": "./uploads/alice-in-wonderland/audio",
-  "audio_files_generated": 2,
-  "audio_files": [
-    "./uploads/alice-in-wonderland/audio/page_001.wav",
-    "./uploads/alice-in-wonderland/audio/page_002.wav"
-  ]
-}
-```
-
-### 3. Combine into Audiobook
-
-**POST** `/api/combine-audiobook`
-
-Combine all individual audio files into a single audiobook file.
-
-#### Using book_id:
-
-```bash
-curl -X POST http://localhost:5000/api/combine-audiobook \
+curl -X POST http://localhost:5001/api/generate-audiobook \
   -H "Content-Type: application/json" \
   -d '{
     "book_id": "alice-in-wonderland",
@@ -203,12 +164,12 @@ curl -X POST http://localhost:5000/api/combine-audiobook \
 #### Using custom CSV path:
 
 ```bash
-curl -X POST http://localhost:5000/api/combine-audiobook \
+curl -X POST http://localhost:5001/api/generate-audiobook \
   -H "Content-Type: application/json" \
   -d '{
     "csv_path": "/path/to/pages.csv",
     "output_path": "/path/to/audiobook.wav",
-    "silence_duration": 1.0
+    "silence_duration": 1.5
   }'
 ```
 
@@ -216,8 +177,11 @@ Response:
 ```json
 {
   "status": "success",
+  "csv_path": "./uploads/alice-in-wonderland/pages.csv",
+  "audio_files_generated": 20,
   "audiobook_path": "./uploads/alice-in-wonderland/audiobook.wav",
   "file_size_bytes": 12345678,
+  "file_size_mb": 11.77,
   "silence_duration": 1.5
 }
 ```
@@ -229,11 +193,11 @@ Response:
 Download the completed audiobook file.
 
 ```bash
-curl http://localhost:5000/api/download/alice-in-wonderland/audiobook \
+curl http://localhost:5001/api/download/alice-in-wonderland/audiobook \
   --output alice-in-wonderland.wav
 ```
 
-Or visit in browser: `http://localhost:5000/api/download/alice-in-wonderland/audiobook`
+Or visit in browser: `http://localhost:5001/api/download/alice-in-wonderland/audiobook`
 
 ## Complete Workflow Example
 
@@ -241,7 +205,7 @@ Or visit in browser: `http://localhost:5000/api/download/alice-in-wonderland/aud
 
 ```bash
 # Step 1: Configure models (if not using environment variables)
-curl -X POST http://localhost:5000/api/config \
+curl -X POST http://localhost:5001/api/config \
   -H "Content-Type: application/json" \
   -d '{
     "extractor_model": "hf.co/LiquidAI/LFM2-1.2B-Extract-GGUF:F16",
@@ -252,24 +216,19 @@ curl -X POST http://localhost:5000/api/config \
   }'
 
 # Step 2: Upload book pages and extract text
-curl -X POST http://localhost:5000/api/extract-text \
+curl -X POST http://localhost:5001/api/extract-text \
   -F "pages=@page001.jpg" \
   -F "pages=@page002.jpg" \
   -F "pages=@page003.jpg" \
   -F "book_id=my-first-book"
 
-# Step 3: Generate audio files
-curl -X POST http://localhost:5000/api/generate-audio \
-  -H "Content-Type: application/json" \
-  -d '{"book_id": "my-first-book"}'
-
-# Step 4: Combine into complete audiobook
-curl -X POST http://localhost:5000/api/combine-audiobook \
+# Step 3: Generate complete audiobook
+curl -X POST http://localhost:5001/api/generate-audiobook \
   -H "Content-Type: application/json" \
   -d '{"book_id": "my-first-book", "silence_duration": 2.0}'
 
-# Step 5: Download the audiobook
-curl http://localhost:5000/api/download/my-first-book/audiobook \
+# Step 4: Download the audiobook
+curl http://localhost:5001/api/download/my-first-book/audiobook \
   --output my-first-book.wav
 ```
 
@@ -277,22 +236,17 @@ curl http://localhost:5000/api/download/my-first-book/audiobook \
 
 ```bash
 # Step 1: Extract text from existing directory
-curl -X POST http://localhost:5000/api/extract-text \
+curl -X POST http://localhost:5001/api/extract-text \
   -H "Content-Type: application/json" \
   -d '{
     "directory": "/Users/me/books/alice-wonderland",
     "book_id": "alice"
   }'
 
-# Step 2: Generate audio
-curl -X POST http://localhost:5000/api/generate-audio \
+# Step 2: Generate complete audiobook
+curl -X POST http://localhost:5001/api/generate-audiobook \
   -H "Content-Type: application/json" \
-  -d '{"book_id": "alice"}'
-
-# Step 3: Combine audiobook
-curl -X POST http://localhost:5000/api/combine-audiobook \
-  -H "Content-Type: application/json" \
-  -d '{"book_id": "alice"}'
+  -d '{"book_id": "alice", "silence_duration": 1.5}'
 ```
 
 ## Python Client Example
@@ -300,7 +254,7 @@ curl -X POST http://localhost:5000/api/combine-audiobook \
 ```python
 import requests
 
-API_BASE = "http://localhost:5000/api"
+API_BASE = "http://localhost:5001/api"
 
 # Configure models
 config = {
@@ -322,16 +276,9 @@ data = {'book_id': 'my-book'}
 response = requests.post(f"{API_BASE}/extract-text", files=files, data=data)
 print(response.json())
 
-# Generate audio
+# Generate complete audiobook
 response = requests.post(
-    f"{API_BASE}/generate-audio",
-    json={"book_id": "my-book"}
-)
-print(response.json())
-
-# Combine audiobook
-response = requests.post(
-    f"{API_BASE}/combine-audiobook",
+    f"{API_BASE}/generate-audiobook",
     json={"book_id": "my-book", "silence_duration": 1.5}
 )
 print(response.json())
@@ -352,7 +299,7 @@ print("Audiobook downloaded!")
 - `AUDIO_MODEL`: Path to main GGUF audio model
 - `AUDIO_MMPROJ`: Path to MMProj GGUF file
 - `AUDIO_DECODER`: Path to audio decoder GGUF file
-- `PORT`: Server port (default: 5000)
+- `PORT`: Server port (default: 5001)
 - `HOST`: Server host (default: 0.0.0.0)
 - `DEBUG`: Enable debug mode (default: False)
 
@@ -418,5 +365,5 @@ For large books (50+ pages), the complete process may take 2-4 hours.
 Example with gunicorn:
 
 ```bash
-uv run gunicorn -w 4 -b 0.0.0.0:5000 audiobook_generator.api:app
+uv run gunicorn -w 4 -b 0.0.0.0:5001 audiobook_generator.api:app
 ```

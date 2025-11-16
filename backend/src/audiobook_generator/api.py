@@ -251,89 +251,26 @@ def extract_text():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/generate-audio', methods=['POST'])
-def generate_audio():
+@app.route('/api/generate-audiobook', methods=['POST'])
+def generate_audiobook():
     """
-    Generate audio files from extracted text.
+    Generate complete audiobook from extracted text.
 
-    Request JSON:
-    {
-        "csv_path": "/path/to/pages.csv",
-        "output_dir": "/path/to/audio/output"  # optional
-    }
-
-    Or use book_id for uploaded books:
-    {
-        "book_id": "my-book"
-    }
-    """
-    try:
-        tts = initialize_tts_processor()
-        data = request.get_json()
-
-        if not data:
-            return jsonify({'error': 'JSON data required'}), 400
-
-        # Get CSV path
-        if 'book_id' in data:
-            book_id = data['book_id']
-            book_dir = UPLOAD_FOLDER / book_id
-            csv_path = str(book_dir / 'pages.csv')
-            output_dir = str(book_dir / 'audio')
-        else:
-            csv_path = data.get('csv_path')
-            if not csv_path:
-                return jsonify({'error': 'csv_path or book_id required'}), 400
-
-            output_dir = data.get('output_dir')
-            if not output_dir:
-                # Default to 'audio' subdirectory next to CSV
-                csv_parent = Path(csv_path).parent
-                output_dir = str(csv_parent / 'audio')
-
-        # Check if CSV exists
-        if not Path(csv_path).exists():
-            return jsonify({'error': f'CSV file not found: {csv_path}'}), 404
-
-        # Generate audio for all pages
-        logger.info(f"Generating audio from {csv_path} to {output_dir}")
-        tts.text_to_speech_batch(csv_path, output_dir)
-
-        # Read updated CSV to get audio file paths
-        import pandas as pd
-        df = pd.read_csv(csv_path)
-
-        audio_files = df[df['audio_path'].notna()]['audio_path'].tolist()
-
-        return jsonify({
-            'status': 'success',
-            'csv_path': csv_path,
-            'output_dir': output_dir,
-            'audio_files_generated': len(audio_files),
-            'audio_files': audio_files
-        })
-
-    except Exception as e:
-        logger.exception("Error in audio generation")
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/combine-audiobook', methods=['POST'])
-def combine_audiobook():
-    """
-    Combine individual audio files into a complete audiobook.
+    This endpoint combines both audio generation and combination into a single step:
+    1. Generates individual audio files for each page
+    2. Combines them into a single audiobook file
 
     Request JSON:
     {
         "csv_path": "/path/to/pages.csv",
         "output_path": "/path/to/audiobook.wav",  # optional
-        "silence_duration": 1.0  # optional, seconds between pages
+        "silence_duration": 1.5  # optional, seconds between pages
     }
 
     Or use book_id for uploaded books:
     {
         "book_id": "my-book",
-        "silence_duration": 1.0  # optional
+        "silence_duration": 1.5  # optional
     }
     """
     try:
@@ -348,17 +285,16 @@ def combine_audiobook():
             book_id = data['book_id']
             book_dir = UPLOAD_FOLDER / book_id
             csv_path = str(book_dir / 'pages.csv')
+            audio_dir = str(book_dir / 'audio')
             output_path = str(book_dir / 'audiobook.wav')
         else:
             csv_path = data.get('csv_path')
             if not csv_path:
                 return jsonify({'error': 'csv_path or book_id required'}), 400
 
-            output_path = data.get('output_path')
-            if not output_path:
-                # Default to 'audiobook.wav' next to CSV
-                csv_parent = Path(csv_path).parent
-                output_path = str(csv_parent / 'audiobook.wav')
+            csv_parent = Path(csv_path).parent
+            audio_dir = data.get('output_dir', str(csv_parent / 'audio'))
+            output_path = data.get('output_path', str(csv_parent / 'audiobook.wav'))
 
         silence_duration = data.get('silence_duration', 1.0)
 
@@ -366,8 +302,17 @@ def combine_audiobook():
         if not Path(csv_path).exists():
             return jsonify({'error': f'CSV file not found: {csv_path}'}), 404
 
-        # Combine audio files
-        logger.info(f"Combining audiobook from {csv_path} to {output_path}")
+        # Step 1: Generate audio files for all pages
+        logger.info(f"Step 1/2: Generating audio files from {csv_path} to {audio_dir}")
+        tts.text_to_speech_batch(csv_path, audio_dir)
+
+        # Read updated CSV to get audio file paths
+        import pandas as pd
+        df = pd.read_csv(csv_path)
+        audio_files = df[df['audio_path'].notna()]['audio_path'].tolist()
+
+        # Step 2: Combine into single audiobook
+        logger.info(f"Step 2/2: Combining {len(audio_files)} audio files into {output_path}")
         result_path = tts.combine_audiobook(csv_path, output_path, silence_duration)
 
         # Get file size
@@ -375,13 +320,16 @@ def combine_audiobook():
 
         return jsonify({
             'status': 'success',
+            'csv_path': csv_path,
+            'audio_files_generated': len(audio_files),
             'audiobook_path': result_path,
             'file_size_bytes': file_size,
+            'file_size_mb': round(file_size / 1024 / 1024, 2),
             'silence_duration': silence_duration
         })
 
     except Exception as e:
-        logger.exception("Error in audiobook combination")
+        logger.exception("Error in audiobook generation")
         return jsonify({'error': str(e)}), 500
 
 
@@ -393,7 +341,7 @@ def download_audiobook(book_id: str):
         audiobook_path = book_dir / 'audiobook.wav'
 
         if not audiobook_path.exists():
-            return jsonify({'error': 'Audiobook not found. Generate it first using /api/combine-audiobook'}), 404
+            return jsonify({'error': 'Audiobook not found. Generate it first using /api/generate-audiobook'}), 404
 
         return send_file(
             audiobook_path,

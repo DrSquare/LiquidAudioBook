@@ -133,19 +133,20 @@ def test_extract_text_upload():
         return False
 
 
-def test_generate_audio():
-    """Test audio generation."""
-    print("\n=== Testing Audio Generation ===")
+def test_generate_audiobook():
+    """Test complete audiobook generation."""
+    print("\n=== Testing Complete Audiobook Generation ===")
 
     payload = {
-        "book_id": "alice-test-api"
+        "book_id": "alice-test-api",
+        "silence_duration": 1.5
     }
 
-    print("Generating audio files...")
+    print("Generating complete audiobook (audio files + combination)...")
     start_time = time.time()
 
     response = requests.post(
-        f"{API_BASE}/generate-audio",
+        f"{API_BASE}/generate-audiobook",
         json=payload
     )
 
@@ -155,38 +156,8 @@ def test_generate_audio():
     if response.status_code == 200:
         result = response.json()
         print(f"Audio files generated: {result.get('audio_files_generated')}")
-        print(f"Output directory: {result.get('output_dir')}")
-        print(f"Time elapsed: {elapsed:.2f}s")
-        return True
-    else:
-        print(f"Error: {response.json()}")
-        return False
-
-
-def test_combine_audiobook():
-    """Test audiobook combination."""
-    print("\n=== Testing Audiobook Combination ===")
-
-    payload = {
-        "book_id": "alice-test-api",
-        "silence_duration": 1.5
-    }
-
-    print("Combining audio files into audiobook...")
-    start_time = time.time()
-
-    response = requests.post(
-        f"{API_BASE}/combine-audiobook",
-        json=payload
-    )
-
-    elapsed = time.time() - start_time
-
-    print(f"Status: {response.status_code}")
-    if response.status_code == 200:
-        result = response.json()
         print(f"Audiobook path: {result.get('audiobook_path')}")
-        print(f"File size: {result.get('file_size_bytes')} bytes ({result.get('file_size_bytes') / 1024 / 1024:.2f} MB)")
+        print(f"File size: {result.get('file_size_mb')} MB")
         print(f"Silence duration: {result.get('silence_duration')}s")
         print(f"Time elapsed: {elapsed:.2f}s")
         return True
@@ -230,8 +201,7 @@ def main():
         ("Configure Models", test_configure_models),
         ("Extract Text (Directory)", test_extract_text_directory),
         # ("Extract Text (Upload)", test_extract_text_upload),  # Optional, can be slow
-        ("Generate Audio", test_generate_audio),
-        ("Combine Audiobook", test_combine_audiobook),
+        ("Generate Audiobook", test_generate_audiobook),
         ("Download Audiobook", test_download_audiobook),
     ]
 
