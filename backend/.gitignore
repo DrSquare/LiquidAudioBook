@@ -50,3 +50,16 @@ temp_audio.mp3
 .pytest_cache/
 .coverage
 htmlcov/
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+*.gguf
+llama-lfm2-audio
+uploads/*
