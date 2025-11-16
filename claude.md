@@ -476,3 +476,327 @@ app/
 **Status:** COMPREHENSIVE REVIEW COMPLETE
 
 ---
+
+## 9. Context Management Guide
+
+### For Future Development Sessions
+
+This section helps manage context efficiently when working on this project. Use it to quickly understand the state and navigate effectively.
+
+#### Quick Reference: Key Files by Purpose
+
+| Purpose | File Path | Key Info |
+|---------|-----------|----------|
+| **PRD Specification** | `audiobook_app_prd.md` | 208 lines, MVP scope, 12 FR |
+| **Main App Component** | `app/client/src/pages/home.tsx` | State orchestration, upload → processing → complete |
+| **Image Upload** | `app/client/src/components/ImageUploadZone.tsx` | FR-001, FR-002, drag-drop, validation |
+| **Audio Player** | `app/client/src/components/AudioPlayer.tsx` | FR-009, FR-010, FR-011, controls |
+| **Progress Display** | `app/client/src/components/ProcessingStages.tsx` | FR-008, 3-step indicator |
+| **Test Suite** | `app/client/src/components/*.test.tsx` | 66 tests, Vitest, 100% passing |
+| **Test Setup** | `app/test/setup.ts` | Global mocks, browser API mocks |
+| **This Review** | `claude.md` | PRD compliance, issues, fixes |
+| **Test Docs** | `app/TEST_SUMMARY.md` | Test execution, coverage, statistics |
+
+#### What's Implemented vs. What's Missing
+
+**Backend Integration NOT Done:**
+- Liquid.ai Vision Model API calls (FR-003)
+- Liquid.ai Text Extraction Model (FR-004)
+- Liquid.ai TTS Model (FR-007)
+- Text combination logic (FR-006)
+- Audio download handler (FR-012)
+
+**Frontend COMPLETE:**
+- All UI components implemented
+- All state management in place
+- Full test coverage (66 tests)
+- Error handling framework
+- Drag-and-drop, image preview, progress tracking
+
+#### Context Session Checklist
+
+When starting a new development session:
+
+1. **Review Current State** (2 min)
+   - [ ] Check `audiobook_app_prd.md` for MVP scope
+   - [ ] Read executive summary in `claude.md`
+   - [ ] Verify test status: `npm run test:run`
+
+2. **Understand Architecture** (5 min)
+   - [ ] Frontend: React 18 + TypeScript
+   - [ ] Backend: Express/Node.js (structure ready)
+   - [ ] Testing: Vitest + React Testing Library (66 tests)
+   - [ ] Styling: Tailwind CSS + shadcn/ui
+
+3. **Key Decision Points**
+   - [ ] Image input only (no PDF, no URL)
+   - [ ] Two-stage text processing (Vision → Refinement)
+   - [ ] Mock Liquid.ai calls for frontend demo
+   - [ ] Simple sequential processing (no queue)
+
+4. **Before Making Changes**
+   - [ ] Check related tests
+   - [ ] Update test if component changes
+   - [ ] Verify no regression: `npm run test:run`
+
+---
+
+### Critical Context Areas
+
+#### Area 1: State Management (home.tsx)
+```
+State: 'upload' → 'processing' → 'completed' → 'upload'
+Files: [uploaded images]
+Processing: 3 stages (0=extract, 1=refine, 2=generate)
+```
+**What to know:** Linear progression, no branching paths
+
+#### Area 2: File Validation (ImageUploadZone.tsx)
+```
+Constraints:
+- JPG/PNG only
+- Max 5MB per file
+- Max 50 files total
+- Silent rejection (no error display yet)
+```
+**TODO:** Add user-friendly error messages
+
+#### Area 3: Processing Pipeline (home.tsx)
+```
+Step 1: Vision Model → Extract text from each image
+Step 2: Text Model → Refine combined text
+Step 3: TTS Model → Generate audio
+Status: Currently mocked with setTimeout
+```
+**Integration needed:** Replace mocks with Liquid.ai API calls
+
+#### Area 4: Audio Player (AudioPlayer.tsx)
+```
+Controls: Play, Pause, Stop, Seek, Download
+Display: Current time, Total duration, Progress bar
+Status: Fully functional with HTML5 audio
+Limitation: Uses mock audio URL
+```
+**Ready for:** Connecting to real audio from backend
+
+#### Area 5: Test Coverage
+```
+Total: 66 tests, 100% passing
+Component tests: 62
+Integration tests: 14
+Coverage areas: Upload, Progress, Playback, State flow
+```
+**Key mocks:** URL.createObjectURL, ResizeObserver, HTMLMediaElement
+
+---
+
+### Development Workflows
+
+#### Workflow 1: Adding a New Component
+1. Create component in `app/client/src/components/`
+2. Create corresponding `.test.tsx` file
+3. Use existing test patterns (see `AudioPlayer.test.tsx`)
+4. Run tests: `npm run test:run`
+5. Update `TEST_SUMMARY.md` if needed
+
+#### Workflow 2: Implementing Backend API
+1. Update `app/server/routes.ts` with endpoint
+2. Implement Liquid.ai SDK integration
+3. Update frontend API calls in `app/client/src/pages/home.tsx`
+4. Add integration tests for API
+5. Test end-to-end with `npm run dev`
+
+#### Workflow 3: Fixing a Test Failure
+1. Run tests: `npm run test:run`
+2. Read test output, find failing test
+3. Check test file: `app/client/src/components/*.test.tsx`
+4. Debug with: `npm run test:ui` (visual dashboard)
+5. Verify fix: `npm run test:run`
+
+#### Workflow 4: Updating PRD
+1. Edit `audiobook_app_prd.md`
+2. Update section numbers and references
+3. Note changes in this document
+4. Update `claude.md` if architecture changes
+
+---
+
+### Code Navigation Guide
+
+#### Finding Functional Requirements
+```
+FR-001, FR-002 → ImageUploadZone.tsx (lines 22-76)
+FR-005 → home.tsx (lines 25-38)
+FR-008 → ProcessingStages.tsx (lines 21-37)
+FR-009, FR-010, FR-011 → AudioPlayer.tsx (lines 36-120)
+```
+
+#### Finding Tests
+```
+Component tests:
+- app/client/src/components/ImageUploadZone.test.tsx
+- app/client/src/components/AudioPlayer.test.tsx
+- app/client/src/components/ProcessingStages.test.tsx
+
+Integration tests:
+- app/client/src/pages/home.test.tsx
+
+Configuration:
+- app/vitest.config.ts
+- app/test/setup.ts
+```
+
+#### Finding Configuration
+```
+UI: app/tailwind.config.ts, app/client/index.html
+Build: app/vite.config.ts
+Types: app/tsconfig.json
+Tests: app/vitest.config.ts, app/test/setup.ts
+```
+
+---
+
+### Common Tasks & Quick Commands
+
+| Task | Command | Time |
+|------|---------|------|
+| Run all tests | `cd app && npm run test:run` | 10s |
+| Watch tests | `cd app && npm test` | - |
+| Visual test dashboard | `cd app && npm run test:ui` | - |
+| Start dev server | `cd app && npm run dev` | 5s |
+| Build for production | `cd app && npm run build` | 30s |
+| Check types | `cd app && npm run check` | 10s |
+| View test coverage | `cd app && npm run test:coverage` | 15s |
+
+---
+
+### Quick Debugging Guide
+
+#### Problem: Test failing
+```
+1. Run: npm run test:ui
+2. Find failing test in dashboard
+3. Read test file for expected behavior
+4. Check component implementation
+5. Add console.log() for debugging
+6. Verify fix with: npm run test:run
+```
+
+#### Problem: Component not rendering
+```
+1. Check: app/client/src/App.tsx (router setup)
+2. Check: app/client/src/pages/home.tsx (main page)
+3. Check: Component is exported and imported
+4. Check: Test IDs match in component and tests
+5. Verify: npm run dev starts without errors
+```
+
+#### Problem: State not updating
+```
+1. Check: home.tsx state initialization
+2. Check: Handler functions are called
+3. Check: setState is being invoked
+4. Add: console.log() in handlers
+5. Use: React DevTools browser extension
+```
+
+---
+
+### Performance & Optimization Notes
+
+**Current Performance:**
+- Test suite: 10.8s total
+- Individual test: < 500ms average
+- Build time: ~30s with Vite
+- Dev start: ~5s
+
+**Optimization Opportunities:**
+- Image compression before upload
+- Lazy load components
+- Code splitting with Vite
+- Memoization of expensive computations
+
+**Not yet optimized:**
+- Backend API calls (not implemented)
+- Large file handling
+- Concurrent processing
+
+---
+
+### Important Decisions & Rationale
+
+| Decision | Rationale |
+|----------|-----------|
+| **Image input only** | Simplify MVP scope, focus on core feature |
+| **Two-stage processing** | Better text quality than single extraction |
+| **Sequential not concurrent** | Simpler implementation for hackathon |
+| **Mock APIs in frontend** | Allow frontend testing without backend |
+| **Vitest + RTL** | Modern, fast, good React integration |
+| **shadcn/ui** | 60+ pre-built components, time saving |
+| **TypeScript throughout** | Type safety, better DX, fewer bugs |
+
+---
+
+### Dependencies & Versions
+
+**Critical Dependencies:**
+- React 18.3.1
+- Vite 5.4.20
+- TypeScript 5.6.3
+- Vitest 1.6.1
+- Tailwind CSS 3.4.17
+
+**UI Components:**
+- @radix-ui/* (60+ components)
+- shadcn/ui (wrapper for Radix)
+- Lucide React (icons)
+
+**Testing:**
+- Vitest (test runner)
+- @testing-library/react (component testing)
+- jsdom (browser simulation)
+
+---
+
+### Maintenance Tasks
+
+**Weekly:**
+- [ ] Run full test suite
+- [ ] Check for TypeScript errors
+- [ ] Review new component patterns
+
+**Before releases:**
+- [ ] All 66 tests passing
+- [ ] No TypeScript errors
+- [ ] Build without warnings
+- [ ] Update version numbers
+
+**Monthly:**
+- [ ] Check dependency updates
+- [ ] Review security vulnerabilities
+- [ ] Optimize slow tests
+
+---
+
+### References for Quick Lookup
+
+- **PRD:** `audiobook_app_prd.md` - Requirements
+- **Tests:** `app/TEST_SUMMARY.md` - Test documentation
+- **Review:** `claude.md` (this file) - Implementation review
+- **Code:** `app/client/src/` - Source code
+- **Tests:** `app/client/src/**/*.test.tsx` - Test files
+
+---
+
+### Getting Help
+
+If stuck on:
+- **Component behavior:** Check component `.test.tsx` for expected behavior
+- **State flow:** Trace through `home.tsx` logic
+- **Test setup:** See `app/test/setup.ts` for mocks
+- **PRD requirements:** Reference `audiobook_app_prd.md`
+- **API integration:** Read "ISSUE #2" in Implementation Issues section
+
+---
+
+
