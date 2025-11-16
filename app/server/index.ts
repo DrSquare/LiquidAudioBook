@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { startMockFlaskServer } from "./services/mock-flask-server";
 
 const app = express();
 
@@ -47,6 +48,17 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Start mock Flask server in development mode for text extraction, refinement, and audio generation
+  if (process.env.NODE_ENV === "development") {
+    try {
+      await startMockFlaskServer(5001, false); // enableDelay: false for faster testing
+      log("Mock Flask ML service started on port 5001");
+    } catch (error) {
+      console.error("Failed to start mock Flask server:", error);
+      log("Warning: Mock Flask server failed to start. Text extraction will fail.");
+    }
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
