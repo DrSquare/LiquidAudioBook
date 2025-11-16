@@ -1,23 +1,26 @@
 # Product Requirements Document (PRD) - MVP Edition
 # LiquidAudio Reader: Hackathon MVP
 
-**Document Version:** 2.0 (MVP Hackathon Edition)
+**Document Version:** 3.0 (MVP with Ollama + LFM Implementation)
 **Date:** November 15, 2025
 **Product Name:** LiquidAudio Reader MVP
 **Platform:** Windows Desktop
 **Duration:** Hackathon (48 hours)
+**ML Stack:** Ollama + Open-Source LFM (Large Foundation Models)
 
 ---
 
 ## 1. Executive Summary
 
-LiquidAudio Reader MVP is a simple Windows desktop application that converts image sequences of book pages into audiobooks. Users upload images from a book (one image per page), the app extracts and refines text using AI models, and generates audio narration using Liquid.ai's text-to-speech model.
+LiquidAudio Reader MVP is a simple Windows desktop application that converts image sequences of book pages into audiobooks. Users upload images from a book (one image per page), the app extracts and refines text using open-source LFM models running locally via Ollama, and generates audio narration using pyttsx3 TTS.
 
 ### Core Value Proposition
 - Convert book page images to audiobook in 3 steps: upload → extract → listen
-- Two-stage text processing for high-quality extraction
-- High-quality audio synthesis
+- Two-stage text processing for high-quality extraction using local LFM models
+- High-quality audio synthesis with local TTS
+- Fully local, no external API dependencies
 - Minimal, focused user interface
+- Privacy-first: All processing happens locally
 
 ---
 
@@ -33,12 +36,13 @@ Users photograph or scan pages from a book, upload the image sequence to the app
 - Students wanting to listen to textbooks
 - Readers converting physical books to audio format
 - Anyone preferring audio content
+- Users who prefer local-only processing (privacy-conscious)
 
 ### 2.3 Core Features (MVP Only)
 1. **Image Upload** - Upload multiple book page images (JPG, PNG)
-2. **Text Extraction** - Extract text from images using Liquid.ai vision model
-3. **Text Refinement** - Process extracted text using Liquid.ai text extraction model
-4. **Text-to-Speech** - Convert refined text to audio
+2. **Text Extraction** - Extract text from images using LFM2-VL-3B vision-language model via Ollama
+3. **Text Refinement** - Refine extracted text using LFM2-1.2B-Extract model via Ollama
+4. **Text-to-Speech** - Convert refined text to audio using pyttsx3 (with LFM2-Audio-1.5B model integration pending)
 5. **Audio Playback** - Play generated audio with basic controls (play/pause/stop)
 6. **Audio Download** - Save audio file locally
 
@@ -66,13 +70,13 @@ Users photograph or scan pages from a book, upload the image sequence to the app
 - **FR-002:** Validate image format before processing
 
 ### 4.2 Text Extraction (Two-Stage)
-- **FR-003:** Extract text from images using Liquid.ai vision model
-- **FR-004:** Refine extracted text using Liquid.ai text extraction model
+- **FR-003:** Extract text from images using LFM2-VL-3B vision-language model (Ollama) - 3B parameters, 3.5GB model size
+- **FR-004:** Refine extracted text using LFM2-1.2B-Extract model (Ollama) - 1.2B parameters, 1.5GB model size
 - **FR-005:** Process images sequentially, preserving order
 - **FR-006:** Combine refined text from all images into single document
 
 ### 4.3 Audio Generation
-- **FR-007:** Convert refined text to speech using Liquid.ai TTS model
+- **FR-007:** Convert refined text to speech using pyttsx3 TTS engine (LFM2-Audio-1.5B Ollama integration planned for post-MVP)
 - **FR-008:** Show progress during entire conversion process
 
 ### 4.4 Playback
@@ -94,40 +98,55 @@ Users photograph or scan pages from a book, upload the image sequence to the app
 - **Audio Player:** HTML5 audio player or react-audio-player
 - **State Management:** React Context or simple useState
 
-### 5.2 Backend (Minimal)
-- **Framework:** Python Flask
-- **Liquid.ai Integration:** Use Liquid.ai SDK for vision + text extraction + TTS
-- **Image Processing:** Pillow for image validation
-- **Processing:** Simple sequential pipeline (no queue needed for MVP)
+### 5.2 Backend (ML Service)
+- **Framework:** Python Flask (microservice architecture)
+- **LFM2 Model Integration:** Ollama server with LFM2-VL-3B (vision), LFM2-1.2B-Extract (text refinement)
+  - Vision Model: LFM2-VL-3B-GGUF:F16 (3.5GB)
+  - Text Model: LFM2-1.2B-Extract-GGUF:F16 (1.5GB)
+  - Audio Model: LFM2-Audio-1.5B-GGUF:F16 (pending, 2GB)
+- **Ollama Configuration:** Local inference server on port 11434
+- **TTS Engine:** pyttsx3 for speech synthesis
+- **Image Processing:** Pillow for image validation and base64 encoding
+- **Processing Architecture:** Sequential pipeline with model status monitoring
 
 ### 5.3 System Requirements
 - Windows 10/11 (64-bit)
-- Internet connection (for Liquid.ai API calls)
-- Minimum 4GB RAM
+- Minimum 16GB RAM (for LFM2 models: 3.5GB + 1.5GB + overhead)
+- Optional: NVIDIA GPU with CUDA support for faster inference
+- Ollama server installed and running on localhost:11434
 
 ---
 
 ## 6. System Architecture (Simplified)
 
 ```
-┌──────────────────────────────────┐
-│   User Interface Layer           │
-│  (React/Electron Desktop App)    │
-├──────────────────────────────────┤
-│   • Image Upload Interface       │
-│   • Progress Indicator           │
-│   • Audio Player                 │
-├──────────────────────────────────┤
-│   Backend Service (Flask)        │
-│  • Image validation              │
-│  • Two-stage text processing     │
-│  • Liquid.ai API orchestration   │
-├──────────────────────────────────┤
-│   Liquid.ai Models               │
-│  • Vision Model (text from image)│
-│  • Text Model (refinement)       │
-│  • TTS Model (audio generation)  │
-└──────────────────────────────────┘
+┌─────────────────────────────────────┐
+│   React Frontend (Port 5000)         │
+│  • Image Upload Interface           │
+│  • Progress Tracking                │
+│  • Audio Player with Controls       │
+└────────────────┬────────────────────┘
+                 │
+┌────────────────▼────────────────────┐
+│   Express Backend (Port 5000)        │
+│  • HTTP request routing             │
+│  • File upload handling             │
+│  • Job state management             │
+└────────────────┬────────────────────┘
+                 │
+┌────────────────▼────────────────────┐
+│   Flask ML Service (Port 5001)       │
+│  • Image validation                 │
+│  • Ollama API orchestration         │
+│  • TTS audio generation             │
+└────────────────┬────────────────────┘
+                 │
+┌────────────────▼────────────────────┐
+│   Ollama Server (Port 11434)         │
+│  • LFM2-VL-3B (vision-language)     │
+│  • LFM2-1.2B-Extract (text)         │
+│  • LFM2-Audio-1.5B (TTS - pending)  │
+└─────────────────────────────────────┘
 ```
 
 ---
@@ -135,33 +154,70 @@ Users photograph or scan pages from a book, upload the image sequence to the app
 ## 7. Processing Pipeline
 
 ```
-Upload Images
+Upload Images (JPG/PNG)
      ↓
-[Image 1] → Vision Model → Raw Text 1
-[Image 2] → Vision Model → Raw Text 2
-[Image 3] → Vision Model → Raw Text 3
+[Image 1] ─→ LFM2-VL-3B (Ollama) → Raw Text 1
+[Image 2] ─→ LFM2-VL-3B (Ollama) → Raw Text 2
+[Image 3] ─→ LFM2-VL-3B (Ollama) → Raw Text 3
      ↓
-Combine All Raw Text
+Combine All Raw Texts
      ↓
-Text Extraction Model → Refined Text
+LFM2-1.2B-Extract (Ollama) → Refined Text
      ↓
-TTS Model → Audio File
+pyttsx3 TTS Engine → MP3 Audio File
      ↓
 User Plays/Downloads Audio
 ```
+
+**Model Processing Details:**
+- **Stage 1 (Vision):** LFM2-VL-3B processes each image sequentially (~30-60s per image)
+- **Stage 2 (Refinement):** LFM2-1.2B-Extract refines combined text (~20-40s for 5 pages)
+- **Stage 3 (Audio):** pyttsx3 converts text to speech (~30-60s for 5 min of audio)
 
 ---
 
 ## 8. Non-Functional Requirements
 
-| Requirement | Target |
-|---|---|
-| Vision extraction per image | < 2 seconds |
-| Text refinement (full document) | < 3 seconds |
-| TTS generation (1000 words) | < 5 seconds |
-| UI responsiveness | < 500ms |
-| Supported image sizes | Up to 5MB per image |
-| Max total images | 50 images per session |
+| Requirement | Target | Notes |
+|---|---|---|
+| Vision extraction per image (LFM2-VL-3B) | 30-60 seconds | CPU-dependent, ~3.5GB model |
+| Text refinement (full document, LFM2-1.2B) | 20-40 seconds | ~1.5GB model, varies with text length |
+| TTS generation (1000 words) | 30-60 seconds | pyttsx3 local synthesis |
+| Total pipeline (5 pages) | 3-7 minutes | End-to-end typical workflow |
+| UI responsiveness | < 500ms | Real-time progress updates |
+| Supported image sizes | Up to 5MB per image | JPG/PNG formats |
+| Max total images | 50 images per session | Memory-dependent |
+
+---
+
+## 8.5 LFM2 Model Specifications
+
+### LFM2-VL-3B (Vision-Language Model)
+- **Purpose:** Extract text from book page images
+- **Model Size:** 3 Billion parameters
+- **File Size:** ~3.5GB (GGUF F16 format)
+- **Input:** JPG/PNG images (base64 encoded)
+- **Output:** Extracted raw text from image
+- **Source:** Hugging Face - `LiquidAI/LFM2-VL-3B-GGUF:F16`
+
+### LFM2-1.2B-Extract (Text Refinement Model)
+- **Purpose:** Refine and clean extracted text for better readability
+- **Model Size:** 1.2 Billion parameters
+- **File Size:** ~1.5GB (GGUF F16 format)
+- **Input:** Combined raw text from all images
+- **Output:** Refined, structured text
+- **Source:** Hugging Face - `LiquidAI/LFM2-1.2B-Extract-GGUF:F16`
+
+### LFM2-Audio-1.5B (Text-to-Speech Model - Pending)
+- **Purpose:** High-quality audio synthesis from text
+- **Model Size:** 1.5 Billion parameters
+- **Components:**
+  - Audio Model: ~1.5GB
+  - MMProj (multimodal projector): ~0.3GB
+  - Audio Decoder: ~0.2GB
+- **Total Size:** ~2GB
+- **Status:** Integration planned for post-MVP release
+- **Current Fallback:** pyttsx3 TTS engine (Windows native)
 
 ---
 
@@ -205,4 +261,20 @@ MVP is successful if:
 
 ---
 
+## 12. Next Phase (Post-MVP Roadmap)
+
+### Planned Enhancements
+1. **LFM2-Audio-1.5B Integration** - Replace pyttsx3 with native LFM2 TTS model for superior audio quality
+2. **GPU Acceleration** - NVIDIA CUDA support for 2-3x faster processing
+3. **Batch Processing** - Parallel image processing instead of sequential
+4. **Model Caching** - Keep models in memory after first use
+5. **Advanced UI** - Text preview and editing before audio generation
+6. **PDF Support** - Convert PDF pages to images internally
+7. **Voice Selection** - Multiple voice profiles for LFM2-Audio model
+8. **Speed/Pitch Control** - Audio playback customization
+
+---
+
 **End of MVP PRD**
+**Last Updated:** November 16, 2025
+**Status:** Updated with LFM2 model specifications and Ollama architecture

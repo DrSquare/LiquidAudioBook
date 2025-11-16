@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
 import { storage } from "./storage";
+import { flaskClient } from "./services/flask-client";
 
 // Configure multer for file uploads
 const upload = multer({
@@ -11,59 +12,74 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // POST /api/extract-text - Extract text from images using vision model
+  // POST /api/extract-text - Extract text from images using Flask ML service
   app.post("/api/extract-text", upload.array("images", 50), async (req, res) => {
+    let jobId: string = "";
     try {
       if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: "No images provided" });
       }
 
       const files = req.files as Express.Multer.File[];
-      const jobId = uuidv4();
 
-      console.log(`[${jobId}] Starting text extraction for ${files.length} images`);
+      // Create job record
+      const job = await storage.createJob({
+        status: "extracting",
+        totalImages: files.length,
+        currentImage: 0,
+      });
+      jobId = (job.id as unknown as string);
 
-      // TODO: Replace with actual Liquid.ai Vision Model API call
-      // For now, simulate text extraction
-      const extractedTexts = await Promise.all(
-        files.map(async (file, index) => {
-          // Simulate extraction delay
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          return {
-            pageNumber: index + 1,
-            text: `Mock extracted text from image ${index + 1}: ${file.originalname}`,
-          };
-        })
+      console.log(
+        `[${jobId}] Starting text extraction for ${files.length} images using Flask ML service`
       );
 
-      // Store job in database
-      await storage.createJob({
-        id: jobId,
+      // Check Flask service health
+      const isHealthy = await flaskClient.isHealthy();
+      if (!isHealthy) {
+        await storage.updateJob(jobId, { status: "error" });
+        return res.status(503).json({
+          message: "Flask ML service is unavailable",
+          jobId,
+        });
+      }
+
+      // Call Flask backend for text extraction
+      const imageBuffers = files.map((file) => file.buffer);
+      const flaskResponse = await flaskClient.extractText(jobId, imageBuffers);
+
+      // Update job status
+      await storage.updateJob(jobId, {
         status: "extracting_completed",
-        totalImages: files.length,
         currentImage: files.length,
       });
+
+      console.log(`[${jobId}] Text extraction completed via Flask`);
 
       res.json({
         jobId,
         status: "completed",
-        extractedTexts,
+        extractedTexts: flaskResponse.extractedTexts,
       });
-
-      console.log(`[${jobId}] Text extraction complete`);
     } catch (error) {
-      console.error("Extract text error:", error);
+      console.error(`[${jobId}] Extract text error:`, error);
+      if (jobId) {
+        await storage.updateJob(jobId, { status: "error" });
+      }
       res.status(500).json({
+        jobId,
         message: "Text extraction failed",
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   });
 
-  // POST /api/refine-text - Refine extracted text using text model
+  // POST /api/refine-text - Refine extracted text using Flask ML service
   app.post("/api/refine-text", async (req, res) => {
+    let jobId: string = "";
     try {
-      const { jobId, extractedTexts } = req.body;
+      const { jobId: reqJobId, extractedTexts, refinementInstructions } = req.body;
+      jobId = reqJobId;
 
       if (!jobId || !extractedTexts || !Array.isArray(extractedTexts)) {
         return res.status(400).json({
@@ -71,41 +87,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`[${jobId}] Starting text refinement`);
+      console.log(
+        `[${jobId}] Starting text refinement using Flask ML service`
+      );
 
-      // Combine all extracted texts
-      const combinedText = extractedTexts.join("\n\n");
+      // Update job status
+      await storage.updateJob(jobId, {
+        status: "refining",
+      });
 
-      // TODO: Replace with actual Liquid.ai Text Extraction Model API call
-      // For now, simulate text refinement
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const refinedText = `Mock refined text from ${extractedTexts.length} images: ${combinedText.substring(0, 50)}...`;
+      // Call Flask backend for text refinement
+      const flaskResponse = await flaskClient.refineText(
+        jobId,
+        extractedTexts,
+        refinementInstructions
+      );
 
       // Update job status
       await storage.updateJob(jobId, {
         status: "refining_completed",
       });
 
+      console.log(`[${jobId}] Text refinement completed via Flask`);
+
       res.json({
         jobId,
         status: "completed",
-        refinedText,
+        refinedText: flaskResponse.refinedText,
       });
-
-      console.log(`[${jobId}] Text refinement complete`);
     } catch (error) {
       console.error("Refine text error:", error);
+      if (jobId) {
+        await storage.updateJob(jobId, { status: "error" });
+      }
       res.status(500).json({
+        jobId,
         message: "Text refinement failed",
         error: error instanceof Error ? error.message : "Unknown error",
       });
     }
   });
 
-  // POST /api/generate-audio - Generate audio from text using TTS model
+  // POST /api/generate-audio - Generate audio from text using Flask ML service
   app.post("/api/generate-audio", async (req, res) => {
+    let jobId: string = "";
     try {
-      const { jobId, text } = req.body;
+      const { jobId: reqJobId, text, voice, rate } = req.body;
+      jobId = reqJobId;
 
       if (!jobId || !text) {
         return res.status(400).json({
@@ -113,14 +141,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log(`[${jobId}] Starting audio generation`);
+      console.log(`[${jobId}] Starting audio generation using Flask ML service`);
 
-      // TODO: Replace with actual Liquid.ai TTS Model API call
-      // For now, simulate audio generation
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Update job status
+      await storage.updateJob(jobId, {
+        status: "generating",
+      });
 
-      // Create mock audio data
-      const audioBuffer = Buffer.from("mock audio data");
+      // Call Flask backend for audio generation
+      const flaskResponse = await flaskClient.generateAudio(
+        jobId,
+        text,
+        voice || "default",
+        rate || 150
+      );
+
+      // Decode base64 audio data and save
+      const audioBuffer = Buffer.from(flaskResponse.audioData, "base64");
       const audioUrl = await storage.saveAudio(jobId, audioBuffer);
 
       // Update job status
@@ -128,16 +165,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "completed",
       });
 
+      console.log(`[${jobId}] Audio generation completed via Flask, URL: ${audioUrl}`);
+
       res.json({
         jobId,
         status: "completed",
         audioUrl,
       });
-
-      console.log(`[${jobId}] Audio generation complete, URL: ${audioUrl}`);
     } catch (error) {
       console.error("Generate audio error:", error);
+      if (jobId) {
+        await storage.updateJob(jobId, { status: "error" });
+      }
       res.status(500).json({
+        jobId,
         message: "Audio generation failed",
         error: error instanceof Error ? error.message : "Unknown error",
       });
@@ -199,9 +240,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Health check endpoint
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  // Health check endpoint - includes Flask ML service status
+  app.get("/api/health", async (req, res) => {
+    try {
+      const flaskHealthy = await flaskClient.isHealthy();
+      const flaskStatus = flaskHealthy
+        ? "connected"
+        : "unavailable";
+
+      res.json({
+        status: flaskHealthy ? "ok" : "degraded",
+        timestamp: new Date().toISOString(),
+        services: {
+          express: "ok",
+          flask: flaskStatus,
+        },
+      });
+    } catch (error) {
+      console.error("Health check error:", error);
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        error: "Unable to verify service health",
+      });
+    }
+  });
+
+  // Flask ML service status endpoint
+  app.get("/api/flask-status", async (req, res) => {
+    try {
+      const status = await flaskClient.getServerStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(503).json({
+        error: "Flask ML service unavailable",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   });
 
   const httpServer = createServer(app);
